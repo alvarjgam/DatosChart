@@ -1,0 +1,290 @@
+<?php
+
+function DatosChart_entity_info() {
+  $return = array(
+    'EDatos' => array(
+      'label' => t('Entidad para guardar los datos de las gráficas'),
+      'controller class' => 'EntityAPIController',
+      'base table' => 'aicia_datos_chart',
+      'entity keys' => array('id' => 'entityID'),
+    ),
+
+  );
+  return $return;
+}
+  function DatosChart_uninstall() {  
+  // TODO The drupal_(un)install_schema functions are called automatically in D7.
+   drupal_uninstall_schema('aicia_datos_chart');
+}
+
+//-------------------------------------------------------------------------------------------|
+//-------------------------------------------------------------------------------------------|
+//  Hooks and Setup Functions
+//-------------------------------------------------------------------------------------------|
+//-------------------------------------------------------------------------------------------|
+
+  //-------------------------------------------------------------------------------------------|
+  //  Implementation of hook_menu, this provides a front-end for the importer
+  //-------------------------------------------------------------------------------------------|
+    function DatosChart_menu() {
+      $items['admin/manage/DatosChart'] = array(
+        'title' => 'Importar datos para las gráficas',
+        'description' => 'Import content from a <abbr title="Comma Separated Values">CSV</abbr> file.',
+        'access callback' => 'user_access',
+        'access arguments' => array('access content'),
+        'page callback' => 'DatosChart_pagecallback',
+        'type' => MENU_NORMAL_ITEM,
+      );
+      return $items ;
+    }
+
+  //-------------------------------------------------------------------------------------------|
+  //  End hook_menu
+  //-------------------------------------------------------------------------------------------|
+  
+//-------------------------------------------------------------------------------------------|
+//-------------------------------------------------------------------------------------------|
+//  End hooks and setup functions
+//-------------------------------------------------------------------------------------------|
+//-------------------------------------------------------------------------------------------|
+
+//-------------------------------------------------------------------------------------------|
+//  Page callback function for the menu item
+//  This just returns our $form
+//-------------------------------------------------------------------------------------------|
+
+  function DatosChart_pagecallback(){
+    $module_path = drupal_get_path('module', 'DatosChart');    
+    $form = drupal_get_form('DatosChart_form');    
+    $output = "<p>This tool will attempt to import data";
+    $output .= drupal_render($form);
+    
+    return $output;
+  }
+	
+//-------------------------------------------------------------------------------------------|
+//  End page callback function for the menu item
+//-------------------------------------------------------------------------------------------|
+
+
+//-------------------------------------------------------------------------------------------|
+//-------------------------------------------------------------------------------------------|
+//  Form builder, validate, and submit functions for the importer form
+//-------------------------------------------------------------------------------------------|
+//-------------------------------------------------------------------------------------------|
+  function DatosChart_form() {
+    	$form['#attributes'] = array(
+      	'enctype' => 'multipart/form-data'
+    	);
+    
+    	$form['import_table_data'] = array(
+    	'#type' => 'select',
+    	'#title' => t('Table'),
+    	'#description' => t('Select the table where you want to import the data'),
+    	'#options' => array(
+		'' => t('Select a table'),
+		'saldo' => t('SALDOS'),
+        ),
+        '#required' => TRUE,
+	);
+  	
+  
+	$form['csvfile'] = array( 
+	'#title' => t('CSV File'),
+        '#type'  => 'file',
+        '#description' => ($max_size = parse_size(ini_get('upload_max_filesize'))) ? t('Due to server restrictions, the <strong>maximum upload file size is !max_size</strong>. Files that exceed this size will 		be disregarded.', array('!max_size' => format_size($max_size))) : '',    
+    	);
+
+        $form['submit'] = array(
+        '#type' => 'submit',
+        '#value' => t('Commence Import'),
+        ) ;
+
+        $form['#validate'] = array(
+        'DatosChart_validate_fileupload',
+        'DatosChart_form_validate',
+        ) ;
+
+    return $form ;
+  }
+	
+
+  function DatosChart_validate_fileupload(&$form, &$form_state) {
+    $validators = array(
+      'file_validate_extensions' => array( 'csv txt' ),
+    );
+    
+    if ( $file = file_save_upload('csvfile', $validators, "public://", FILE_EXISTS_REPLACE) ) {
+      $form_state['values']['csvupload'] = $file->destination;       
+    }
+    else {
+      form_set_error('DatosChart', t('Unable to copy upload file to !dest', array('!dest' => $destination)));
+    }      
+  }
+
+	
+  function DatosChart_form_validate(&$form, &$form_state) {
+    if ( isset( $form_state['values']['csvupload'] ) ) {
+      if ( $handle = fopen($form_state['values']['csvupload'], 'r') ) {
+        $line_count = 1 ;
+        $first = TRUE ;
+        if ( $line = fgetcsv($handle, 4096, ';') ) {
+		$type = array();
+  		$type = check_plain($form_state['values']['import_table_data']);
+          //-------------------------------------------------------------------------------------------|
+          //  This is where you can validate aspects of the file itself, like the number of columns
+          //-------------------------------------------------------------------------------------------|
+
+        if(count($line) != 9){
+            	form_set_error('csvfile', t('This file has the incorrect number of columns. Expecting 11'));
+            	}
+	
+          //-------------------------------------------------------------------------------------------|
+          //  End validating aspects of the CSV file
+          //-------------------------------------------------------------------------------------------|                    
+          
+        }
+        fclose($handle);
+      }
+      else {
+        form_set_error('csvfile', t('Unable to read uploaded file !filepath', array('!filepath' => $form_state['values']['csvupload'])));
+      }
+    }
+  }
+	
+
+  function DatosChart_form_submit(&$form, &$form_state) {
+
+    $batch = array(
+      'title' => t('Importing CSV ...'),
+      'operations' => array(),
+      'init_message' => t('Commencing'),
+      'progress_message' => t('Processed @current out of @total.'),
+      'error_message' => t('An error occurred during processing'),
+      'finished' => 'DatosChart_import_finished',
+    ) ;
+    if ( isset( $form_state['values']['csvupload'] ) ) {
+      if ( $handle = fopen($form_state['values']['csvupload'], 'r') ) {
+        $batch['operations'][] = array('_DatosChart_remember_filename', array( $form_state['values']['csvupload'] ) ) ;
+        $line_count = 1 ;
+        $first = TRUE ;
+		$type = array();
+        $line = fgetcsv($handle, 4096, ';');
+
+		$type = check_plain($form_state['values']['import_table_data']);
+
+		$fecha = $line[8];
+		drupal_set_message("fecha {$fecha}");
+	  
+    switch ($type) {
+    case 'saldo':
+	// Tenemos que modificar la cabecera
+       $header = array('field_num_equip_saldo', 'field_num_proyecto_saldo', 'field_nomb_proy', 'field_saldo_deudor', 'field_saldo_acreedor', 'field_deudor_inicial', 'field_acreedor_incial', 'field_fech_saldo', 'field_fech_grafica');
+      break;	
+    }
+
+	DatosChart_get_file_data($form_state['values']['csvupload'],$type,$fecha,$header);
+	
+        fclose($handle);		
+	  }
+    } 
+    batch_set($batch);
+  }
+	
+//-------------------------------------------------------------------------------------------|
+//-------------------------------------------------------------------------------------------|
+//  End Form builder, validate, and submit functions for the importer form
+//-------------------------------------------------------------------------------------------|
+//-------------------------------------------------------------------------------------------|
+
+
+//-------------------------------------------------------------------------------------------|
+//-------------------------------------------------------------------------------------------|
+//  Batch API helpers
+//-------------------------------------------------------------------------------------------|
+//-------------------------------------------------------------------------------------------|
+
+  function DatosChart_import_finished($success, $results, $operations) {
+    if ( !empty($results['failed_rows']) ) {
+      $dir  = file_directory_path() . '/csvImporter/' ;
+      if ( file_check_directory( $dir, FILE_CREATE_DIRECTORY ) ) {
+        $csv_filename = 'failed_rows-'. basename($results['uploaded_filename']); // we validated extension on upload
+        $csv_filepath = $dir .'/'. $csv_filename;
+        $targs = array(
+          '!csv_url' => l(check_plain($csv_filename), $csv_filepath),
+          '%csv_filename' => $csv_filename,
+          '%csv_filepath' => $csv_filepath,
+        ) ;
+        if ( $handle = fopen($csv_filepath, 'w+') ) {
+          foreach( $results['failed_rows'] as $failed_row ) {
+            fputcsv($handle, $failed_row);
+          }
+          fclose($handle);
+          drupal_set_message(t('Some rows failed to import. You may download a CSV of these rows: !csv_url', $targs), 'error');
+        }
+        else {
+          drupal_set_message(t('Some rows failed to import, but unable to write error CSV to %csv_filepath', $targs), 'error');
+        }
+      }
+      else {
+        drupal_set_message(t('Some rows failed to import, but unable to create directory for error CSV at %csv_directory', $targs), 'error');
+      }
+    }
+    return t('The CSV import has completed.');
+  }
+  
+  
+  function _DatosChart_remember_filename($filename, &$context) {
+    $context['results']['uploaded_filename'] = $filename;
+  }
+
+//-------------------------------------------------------------------------------------------|
+//-------------------------------------------------------------------------------------------|
+//  End batch API helpers
+//-------------------------------------------------------------------------------------------|
+//-------------------------------------------------------------------------------------------|
+
+//-------------------------------------------------------------------------------------------|
+//	DatosChart_get_file_data. 
+//		Argumentos: 
+//			- Enlace del archivo, tipo de datos que contiene, año de los datos a importar, campos de los datos 
+//		Acciones:
+//			- Borramos la lista de aicia provisional de otra importación anterior
+//			- Consulta en la base de datos para recoger los nodos de datos que hay borrar
+//			- Borramos los nodos (Directamente si son apuntes, csvBorrar si son otro tipo de datos)
+//			- Importamos (Directamente si son apuntes, csvImporter_importar si son otro tipo de datos)
+//-------------------------------------------------------------------------------------------|
+
+function DatosChart_get_file_data($url, $type, $fecha,$header) {
+
+    $data_file = file_get_contents($url);
+    $rows = explode("\n", $data_file);
+
+	
+     db_delete('aicia_datos_chart')
+		->condition('field_fech_grafica',$fecha)
+		->execute();
+	
+  	foreach ($rows as $row) {
+		if (!empty($row)){
+			/*
+			$row = explode(";", $row);
+			$record = new stdClass();
+			$md5 = '';
+			
+			for ($i = 0; $i < count($header) ; $i++) {
+				$key = $header[$i];		
+				$value = trim(str_replace(array('"', ','), array('', '.'), $row[$i]));
+				$record->{$key} = iconv('ISO-8859-1', 'UTF-8', $value);
+				$md5 .= iconv('ISO-8859-1', 'UTF-8', $value);		
+			}
+
+			//$record->md5 = md5($md5);
+			$record->field_processed = 0;
+	
+			drupal_write_record("aicia_datos_chart", $record);
+			*/
+		}
+    }
+	
+}

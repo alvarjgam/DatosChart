@@ -1,0 +1,87 @@
+<?php
+
+function DatosChart_schema() {
+  $schema['aicia_datos_chart'] = array(
+    'description' => 'Almacena instancias de la entidad',
+    'fields' => array(
+		'entityID' => array(
+			'type' => 'serial',
+			'not null' => TRUE,
+			'description' => 'Identidicador unico de esta entidad.',
+		),
+		'nombre' => array(
+			'description' => 'Nombre de la instancia',
+			'type' => 'varchar',
+			'length' => 100,
+			'not null' => TRUE,
+			'default' => '',
+		),
+	    'field_num_equip_saldo' => array(
+			'type' => 'varchar',
+			'not null' => TRUE,
+			'length' => 2,
+		),
+		'field_num_proyecto_saldo' => array(
+			'type' => 'varchar',
+			'not mull' => TRUE,
+			'length' => 4,
+		),
+		'field_nomb_proy' => array(
+			'type' => 'varchar',
+			'length' => 255,
+			'not null' => TRUE,
+		),
+		'field_saldo_deudor' => array(
+			'type' => 'float',
+			'precision' => 10,
+			'scale' => 2,
+			'not null' => TRUE,
+			'unsigned' => TRUE,
+		),
+		'field_saldo_acreedor' => array(
+			'type' => 'float',
+			'precision' => 10,
+			'scale' => 2,
+			'not null' => TRUE,
+			'unsigned' => TRUE,
+		),
+		'field_deudor_inicial' => array(
+			'type' => 'float',
+			'precision' => 10,
+			'scale' => 2,
+			'not null' => TRUE,
+			'unsigned' => TRUE,
+		),
+		'field_acreedor_incial' => array(
+			'type' => 'float',
+			'precision' => 10,
+			'scale' => 2,
+			'not null' => TRUE,
+			'unsigned' => TRUE,
+		),
+		'field_fech_saldo' => array(
+		   'type' => 'varchar',
+		   'not null' => TRUE,
+		   'length' => 8,
+		),
+		'field_fech_grafica' => array(
+			'type' => 'varchar',
+			'not null' => TRUE,
+			'length' => 8,
+		),
+		'field_processed' => array(
+		    'type' => 'int',
+            'unsigned' => FALSE,
+            'not null' => TRUE,
+            'default' => 0,
+		),
+		'md5' => array(
+            'type' => 'varchar',
+            'length' => 255,
+            'not null' => FALSE,
+		),
+    ),
+    'primary key' => array('entityID'),
+  );
+  return $schema;
+}

@@ -1,0 +1,6 @@
+; $Id$
+name = Importar datos para las gráficas
+description = Importar datos para las gráficas
+core = 7.x
+
+dependencies[] = entity
